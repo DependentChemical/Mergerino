@@ -15,7 +15,7 @@ namespace chatterino {
 inline QString youTubeOAuthClientID()
 {
     return QStringLiteral(
-        "8534918506-k76hkejg2r9gjbfq7sqkqbjv1uvvg2ft.apps.googleusercontent.com");
+        "328891569326-rqat0nc2l1md8pe4cr8ethrkb7rhfk6t.apps.googleusercontent.com");
 }
 
 inline QString youTubeOAuthClientSecret()
