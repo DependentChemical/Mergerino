@@ -74,6 +74,7 @@ set(test_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/MemoryAndGiveaway.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/SettingsPersistence.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/YouTubeLiveChat.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/Paths.cpp
     # Add your new file above this line!
     )
 

@@ -146,14 +146,14 @@ int main(int argc, char **argv)
     catch (std::runtime_error &error)
     {
         QMessageBox box;
-        if (Modes::instance().isPortable)
+        if (Modes::instance().dataRoot.isEmpty())
         {
             auto errorMessage =
                 error.what() +
                 QStringLiteral(
-                    "\n\nInfo: Portable mode requires the application to "
-                    "be in a writeable location. If you don't want "
-                    "portable mode reinstall the application.");
+                    "\n\nInfo: Mergerino stores its data in the folder next "
+                    "to the executable, so the application has to be in a "
+                    "writeable location.");
             std::cerr << errorMessage.toLocal8Bit().constData() << '\n';
             std::cerr.flush();
             box.setText(errorMessage);

@@ -146,19 +146,17 @@ cmake --build build-linux --parallel 2
 
 No YouTube secret is needed for anonymous YouTube chat viewing. Only use the special launch procedure in the [YouTube OAuth section](#youtube-oauth-sign-in-sending-and-moderation) when testing authenticated YouTube features.
 
-On a typical Linux desktop, Qt stores Mergerino data below:
+Mergerino is portable: it stores its data in a `settings` folder next to the
+executable, so a run from `build-linux/bin` keeps everything in
+`build-linux/bin/settings`:
 
 ```text
-$XDG_DATA_HOME/mergerino
+build-linux/bin/settings
 ```
 
-If `XDG_DATA_HOME` is not set, that normally resolves to:
-
-```text
-~/.local/share/mergerino
-```
-
-By default, settings, account tokens, logs, and cache live below that root. A custom cache path or a `modes` file beside the executable can override some or all of these locations.
+By default, settings, account tokens, logs, and cache live below that folder. A
+`modes` file beside the executable can override the location with a
+`data-root=<path>` line, and the cache path can be changed in the settings.
 
 ## Optional local install
 
@@ -285,7 +283,7 @@ Treat the Linux Mergerino data directory as private.
 Twitch and YouTube OAuth tokens, the Kick client ID, client secret and tokens, and the 7TV session token are currently saved in:
 
 ```text
-Settings/settings.json
+settings/settings.json
 ```
 
 Mergerino also keeps settings backups. These provider tokens are not protected by QtKeychain, even when QtKeychain support is enabled. Never post or attach:
@@ -304,7 +302,7 @@ If QtKeychain configuration itself prevents a build, this troubleshooting option
 -DBUILD_WITH_QTKEYCHAIN=OFF
 ```
 
-Use it only if necessary. The generic credentials subsystem then falls back to an unencrypted `Settings/credentials.json` file.
+Use it only if necessary. The generic credentials subsystem then falls back to an unencrypted `settings/credentials.json` file.
 
 ## Important updater warning
 

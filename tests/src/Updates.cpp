@@ -5,6 +5,7 @@
 #include "singletons/Updates.hpp"
 
 #include "common/Version.hpp"
+#include "singletons/Paths.hpp"
 #include "Test.hpp"
 
 #include <semver/semver.hpp>
@@ -86,4 +87,29 @@ TEST(Updates, DetectReleaseOnlyWhenNewerThanBuild)
         << "An unknown build time must be treated as newer";
     EXPECT_TRUE(Updates::isReleaseNewerThanBuild(releaseTime, {}))
         << "An unknown release time must be treated as newer";
+}
+
+TEST(Updates, InstallScriptMovesDataIntoThePortableFolder)
+{
+    const auto script = Updates::installScript();
+    const auto moveCall = QStringLiteral("Move-DataInto $source $destination");
+    const auto deleteCall =
+        QStringLiteral("Remove-Item -LiteralPath $source -Recurse -Force");
+
+    EXPECT_TRUE(script.contains(QStringLiteral("[string]$PortableDataDir")))
+        << "The install script must know the portable data folder";
+    EXPECT_TRUE(script.contains(QStringLiteral("[string]$LegacyDataDir")))
+        << "The install script must know the old data folder";
+
+    for (const auto &folder : Paths::legacyDataFolderNames())
+    {
+        EXPECT_TRUE(script.contains(QStringLiteral("'%1'").arg(folder)))
+            << "The install script must move the " << folder << " folder";
+    }
+
+    EXPECT_TRUE(script.contains(moveCall))
+        << "The install script must move data into the portable data folder";
+    EXPECT_TRUE(script.contains(deleteCall))
+        << "The install script must delete the cache of the previous "
+           "installation";
 }

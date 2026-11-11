@@ -1,5 +1,11 @@
 Patch Notes
 
+11/11/2026
+- Added fully portable mode: all settings, caches, logs, plugins, themes and every other file are now stored in a 'settings' folder next to mergerino.exe instead of %APPDATA%
+- Added automatic migration of the data of previous installations into the portable 'settings' folder, so no configuration is lost when updating
+- Improved the update process: existing data is moved into the 'settings' folder and the cache of the previous installation is deleted, so updates keep the installation portable and leave no stale files behind
+- Mergerino now has to be installed in a writeable location, because it stores its data next to the executable
+
 15/10/2026
 - Added guess the emote and wheel spin to giveaway feature
 - Added mass ban/unban command

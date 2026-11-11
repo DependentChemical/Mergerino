@@ -492,6 +492,126 @@ QString Updates::portableUpdaterPath()
                        "updater.1/MergerinoUpdater.exe");
 }
 
+QString Updates::installScript()
+{
+    QStringList dataFolders;
+    for (const auto &name : Paths::legacyDataFolderNames())
+    {
+        dataFolders << QStringLiteral("'%1'").arg(name);
+    }
+
+    return QStringLiteral(R"powershell(
+param(
+    [Parameter(Mandatory=$true)][int]$MergerinoProcessId,
+    [Parameter(Mandatory=$true)][string]$ZipPath,
+    [Parameter(Mandatory=$true)][string]$AppDir,
+    [Parameter(Mandatory=$true)][string]$ExeName,
+    [Parameter(Mandatory=$true)][string]$PortableDataDir,
+    [string]$LegacyDataDir = ''
+)
+
+$ErrorActionPreference = 'Stop'
+
+try {
+    Wait-Process -Id $MergerinoProcessId -Timeout 60 -ErrorAction SilentlyContinue
+} catch {
+}
+
+Start-Sleep -Milliseconds 500
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+$stage = Join-Path ([System.IO.Path]::GetTempPath()) ('MergerinoUpdate-' + [Guid]::NewGuid().ToString('N'))
+[System.IO.Directory]::CreateDirectory($stage) | Out-Null
+
+[System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $stage)
+
+$payload = $stage
+$nestedPayload = Join-Path $stage 'Mergerino'
+if (Test-Path -LiteralPath (Join-Path $nestedPayload 'mergerino.exe')) {
+    $payload = $nestedPayload
+} elseif (-not (Test-Path -LiteralPath (Join-Path $payload 'mergerino.exe'))) {
+    throw 'Update archive does not contain mergerino.exe.'
+}
+
+Get-ChildItem -LiteralPath $payload | Copy-Item -Destination $AppDir -Recurse -Force
+
+# Mergerino keeps all of its data in the portable data folder. Move the data of
+# previous installations into it, so the installation stays portable.
+function Move-DataInto([string]$Source, [string]$Destination) {
+    if (-not (Test-Path -LiteralPath $Source)) {
+        return
+    }
+    if ([System.IO.Path]::GetFullPath($Source).TrimEnd('\') -eq [System.IO.Path]::GetFullPath($Destination).TrimEnd('\')) {
+        return
+    }
+    [System.IO.Directory]::CreateDirectory($Destination) | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
+        $target = Join-Path $Destination $item.Name
+        if (Test-Path -LiteralPath $target) {
+            continue
+        }
+        Move-Item -LiteralPath $item.FullName -Destination $target -Force -ErrorAction SilentlyContinue
+    }
+    # Remove the source folder if it is empty now, so that no leftovers stay
+    # behind.
+    if (-not (Get-ChildItem -LiteralPath $Source -Force)) {
+        Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$dataFolders = @(%1)
+
+foreach ($name in $dataFolders) {
+    $source = Join-Path $AppDir $name
+    if ($name -eq 'Cache') {
+        # The cache of the previous installation is deleted instead of being
+        # moved. Mergerino uses the cache inside the portable data folder.
+        if (Test-Path -LiteralPath $source) {
+            Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        continue
+    }
+    # Settings used to be stored in their own folder. They now live directly
+    # inside the portable data folder.
+    if ($name -eq 'Settings') {
+        $destination = $PortableDataDir
+    } else {
+        $destination = Join-Path $PortableDataDir $name
+    }
+    Move-DataInto $source $destination
+}
+
+if ($LegacyDataDir -and (Test-Path -LiteralPath $LegacyDataDir)) {
+    foreach ($item in Get-ChildItem -LiteralPath $LegacyDataDir -Force) {
+        if ($item.Name -eq 'Cache') {
+            # The cache of the previous installation is deleted instead of
+            # being moved.
+            if (Test-Path -LiteralPath $item.FullName) {
+                Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            continue
+        }
+        if (-not $item.PSIsContainer) {
+            $target = Join-Path $PortableDataDir $item.Name
+            if (-not (Test-Path -LiteralPath $target)) {
+                Move-Item -LiteralPath $item.FullName -Destination $target -Force -ErrorAction SilentlyContinue
+            }
+            continue
+        }
+        if ($item.Name -eq 'Settings') {
+            Move-DataInto $item.FullName $PortableDataDir
+        } else {
+            Move-DataInto $item.FullName (Join-Path $PortableDataDir $item.Name)
+        }
+    }
+}
+
+Start-Process -FilePath (Join-Path $AppDir $ExeName) -WorkingDirectory $AppDir
+)powershell")
+        .arg(dataFolders.join(", "));
+}
+
 bool Updates::shouldShowUpdateButton() const
 {
     return this->status_ == UpdateAvailable;
@@ -623,42 +743,7 @@ void Updates::downloadAndRunInstaller_()
 
             const auto scriptPath =
                 combinePath(this->paths.miscDirectory, "install-update.ps1");
-            const auto script = QStringLiteral(R"powershell(
-param(
-    [Parameter(Mandatory=$true)][int]$MergerinoProcessId,
-    [Parameter(Mandatory=$true)][string]$ZipPath,
-    [Parameter(Mandatory=$true)][string]$AppDir,
-    [Parameter(Mandatory=$true)][string]$ExeName
-)
-
-$ErrorActionPreference = 'Stop'
-
-try {
-    Wait-Process -Id $MergerinoProcessId -Timeout 60 -ErrorAction SilentlyContinue
-} catch {
-}
-
-Start-Sleep -Milliseconds 500
-
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-
-$stage = Join-Path ([System.IO.Path]::GetTempPath()) ('MergerinoUpdate-' + [Guid]::NewGuid().ToString('N'))
-[System.IO.Directory]::CreateDirectory($stage) | Out-Null
-
-[System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $stage)
-
-$payload = $stage
-$nestedPayload = Join-Path $stage 'Mergerino'
-if (Test-Path -LiteralPath (Join-Path $nestedPayload 'mergerino.exe')) {
-    $payload = $nestedPayload
-} elseif (-not (Test-Path -LiteralPath (Join-Path $payload 'mergerino.exe'))) {
-    throw 'Update archive does not contain mergerino.exe.'
-}
-
-Get-ChildItem -LiteralPath $payload | Copy-Item -Destination $AppDir -Recurse -Force
-
-Start-Process -FilePath (Join-Path $AppDir $ExeName) -WorkingDirectory $AppDir
-)powershell");
+            const auto script = Updates::installScript();
 
             const auto scriptBytes = script.toUtf8();
             QSaveFile scriptFile(scriptPath);
@@ -674,7 +759,7 @@ Start-Process -FilePath (Join-Path $AppDir $ExeName) -WorkingDirectory $AppDir
 
             const auto appPath = QCoreApplication::applicationFilePath();
             const QFileInfo appInfo(appPath);
-            const QStringList args{
+            QStringList args{
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
@@ -688,7 +773,16 @@ Start-Process -FilePath (Join-Path $AppDir $ExeName) -WorkingDirectory $AppDir
                 QDir::toNativeSeparators(QCoreApplication::applicationDirPath()),
                 "-ExeName",
                 appInfo.fileName(),
+                "-PortableDataDir",
+                QDir::toNativeSeparators(this->paths.rootAppDataDirectory),
             };
+
+            const auto legacyDataDir = Paths::legacyAppDataDirectory();
+            if (!legacyDataDir.isEmpty())
+            {
+                args << "-LegacyDataDir"
+                     << QDir::toNativeSeparators(legacyDataDir);
+            }
 
             if (!QProcess::startDetached("powershell.exe", args))
             {

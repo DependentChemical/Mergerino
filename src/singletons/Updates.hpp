@@ -75,6 +75,13 @@ public:
 
     static QString portableUpdaterPath();
 
+    /// The PowerShell script that installs a downloaded update.
+    ///
+    /// Besides installing the new files, it moves the data of previous
+    /// installations into the portable data folder, so the installation stays
+    /// portable after an update.
+    static QString installScript();
+
     bool shouldShowUpdateButton() const;
     bool isError() const;
     bool isDowngrade() const;
