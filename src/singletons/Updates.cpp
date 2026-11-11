@@ -17,6 +17,7 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QIODevice>
@@ -36,9 +37,9 @@ using namespace chatterino;
 using namespace literals;
 
 const QUrl MERGERINO_LATEST_RELEASE_API(
-    u"https://api.github.com/repos/Fixlation/Mergerino/releases/latest"_s);
+    u"https://api.github.com/repos/DependentChemical/Mergerino/releases/latest"_s);
 const QString MERGERINO_RAW_VERSION_URL =
-    u"https://raw.githubusercontent.com/Fixlation/Mergerino/%1/src/common/Version.hpp"_s;
+    u"https://raw.githubusercontent.com/DependentChemical/Mergerino/%1/src/common/Version.hpp"_s;
 
 QString normalizedReleaseVersion(const QString &value)
 {
@@ -166,6 +167,51 @@ QString releaseCommitFrom(const QString &releaseBody,
     return normalizedCommit(targetCommitish);
 }
 
+/// Parses the timestamp of a GitHub release.
+///
+/// An invalid QDateTime is returned when the release doesn't contain a
+/// timestamp we understand.
+QDateTime parseReleaseTimestamp(const QString &publishedAt,
+                                const QString &createdAt)
+{
+    for (const auto &value : {publishedAt, createdAt})
+    {
+        if (value.isEmpty())
+        {
+            continue;
+        }
+
+        auto parsed = QDateTime::fromString(value, Qt::ISODate);
+        if (!parsed.isValid())
+        {
+            continue;
+        }
+
+        // GitHub returns UTC timestamps ending in 'Z'
+        if (value.endsWith(u'Z'))
+        {
+            parsed.setTimeSpec(Qt::UTC);
+        }
+
+        return parsed.toUTC();
+    }
+
+    return {};
+}
+
+/// The time at which the running executable was created.
+QDateTime localBuildTime()
+{
+    const QFileInfo appInfo(QCoreApplication::applicationFilePath());
+    const auto modified = appInfo.lastModified();
+    if (!modified.isValid())
+    {
+        return {};
+    }
+
+    return modified;
+}
+
 bool isNewerVersion(const QString &online, const QString &current)
 {
     semver::version onlineVersion;
@@ -251,6 +297,19 @@ bool Updates::isUpdateAvailable(const QString &onlineVersion,
            normalizedOnlineCommit != normalizedCurrentCommit;
 }
 
+bool Updates::isReleaseNewerThanBuild(const QDateTime &publishedAt,
+                                      const QDateTime &buildTime)
+{
+    if (!publishedAt.isValid() || !buildTime.isValid())
+    {
+        // We can't tell in which order the two builds were created, so we
+        // assume the release is newer.
+        return true;
+    }
+
+    return publishedAt > buildTime;
+}
+
 void Updates::deleteOldFiles()
 {
     std::ignore = QtConcurrent::run([dir{this->paths.miscDirectory}] {
@@ -321,6 +380,9 @@ void Updates::checkForUpdates()
             const auto targetCommitish = root["target_commitish"].toString();
             const auto releaseCommit = releaseCommitFrom(
                 root["body"].toString(), targetCommitish);
+            const auto releaseTimestamp = parseReleaseTimestamp(
+                root["published_at"].toString(),
+                root["created_at"].toString());
 
             QString downloadUrl;
             const auto assets = root["assets"].toArray();
@@ -336,8 +398,8 @@ void Updates::checkForUpdates()
             }
 
             const auto handleReleaseVersion =
-                [this, downloadUrl,
-                 releaseCommit](const QString &releaseVersion) {
+                [this, downloadUrl, releaseCommit,
+                 releaseTimestamp](const QString &releaseVersion) {
                     if (releaseVersion.isEmpty() || downloadUrl.isEmpty())
                     {
                         qCWarning(chatterinoUpdate)
@@ -352,10 +414,24 @@ void Updates::checkForUpdates()
 
                     this->isDowngrade_ = Updates::isDowngradeOf(
                         releaseVersion, this->currentVersion_);
-                    if (Updates::isUpdateAvailable(
-                            releaseVersion, this->currentVersion_,
-                            releaseCommit,
-                            Version::instance().commitFullHash()))
+
+                    auto updateAvailable = Updates::isUpdateAvailable(
+                        releaseVersion, this->currentVersion_, releaseCommit,
+                        Version::instance().commitFullHash());
+
+                    if (updateAvailable &&
+                        releaseVersion == this->currentVersion_)
+                    {
+                        // The release has the same version as the running
+                        // build but was built from a different commit. Only
+                        // offer it as an update if it was published after
+                        // this build was created - otherwise the "update"
+                        // would be older than what is already running.
+                        updateAvailable = Updates::isReleaseNewerThanBuild(
+                            releaseTimestamp, localBuildTime());
+                    }
+
+                    if (updateAvailable)
                     {
                         this->setStatus_(UpdateAvailable);
                         return;

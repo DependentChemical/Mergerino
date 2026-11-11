@@ -65,3 +65,25 @@ TEST(Updates, DetectUpdateByVersionOrCommit)
     EXPECT_FALSE(
         Updates::isUpdateAvailable("1.3.2", "1.3.3", commitB, commitA));
 }
+
+TEST(Updates, DetectReleaseOnlyWhenNewerThanBuild)
+{
+    const auto releaseTime =
+        QDateTime::fromString(QStringLiteral("2026-11-11T07:14:27Z"),
+                               Qt::ISODate);
+    const auto olderBuildTime =
+        QDateTime::fromString(QStringLiteral("2026-11-11T06:00:00Z"),
+                               Qt::ISODate);
+    const auto newerBuildTime =
+        QDateTime::fromString(QStringLiteral("2026-11-11T08:00:00Z"),
+                               Qt::ISODate);
+
+    EXPECT_TRUE(Updates::isReleaseNewerThanBuild(releaseTime, olderBuildTime))
+        << "A release published after the build must be newer";
+    EXPECT_FALSE(Updates::isReleaseNewerThanBuild(releaseTime, newerBuildTime))
+        << "A release published before the build must not be newer";
+    EXPECT_TRUE(Updates::isReleaseNewerThanBuild({}, releaseTime))
+        << "An unknown build time must be treated as newer";
+    EXPECT_TRUE(Updates::isReleaseNewerThanBuild(releaseTime, {}))
+        << "An unknown release time must be treated as newer";
+}

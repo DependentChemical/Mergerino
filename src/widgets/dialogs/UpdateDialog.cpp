@@ -561,7 +561,7 @@ PostUpdateDialog::PostUpdateDialog(const QString &version, QWidget *parent)
     layout->addWidget(patchNotes);
 
     auto *link = new QLabel(
-        QStringLiteral("<a href=\"https://github.com/Fixlation/Mergerino/blob/"
+        QStringLiteral("<a href=\"https://github.com/DependentChemical/Mergerino/blob/"
                        "main/patchnotes.txt\">View all patch notes here</a>"),
         this);
     link->setTextFormat(Qt::RichText);

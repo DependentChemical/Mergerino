@@ -6,6 +6,7 @@
 
 #include <pajlada/signals/scoped-connection.hpp>
 #include <pajlada/signals/signal.hpp>
+#include <QDateTime>
 #include <QString>
 
 #include <memory>
@@ -46,6 +47,20 @@ public:
                                   const QString &currentVersion,
                                   const QString &onlineCommit,
                                   const QString &currentCommit);
+
+    /// Checks whether a release that was published at `publishedAt` is newer
+    /// than a build that was created at `buildTime`.
+    ///
+    /// Releases are published as a rolling release that keeps the same version
+    /// number, so the version number alone can't tell whether a release is
+    /// newer than the running build. Comparing the publication date of the
+    /// release with the timestamp of the running build tells us in which
+    /// order the two were created.
+    ///
+    /// An invalid timestamp means that the order of the two builds is
+    /// unknown, in which case the release is assumed to be newer.
+    static bool isReleaseNewerThanBuild(const QDateTime &publishedAt,
+                                        const QDateTime &buildTime);
 
     /**
      * @brief Delete old files that belong to the update process

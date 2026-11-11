@@ -16,7 +16,7 @@ inline constexpr QStringView LINK_MERGERINO_DOCUMENTATION = u"";
 inline constexpr QStringView LINK_MERGERINO_DISCORD =
     u"https://discord.gg/tAjdrbvxwT";
 inline constexpr QStringView LINK_MERGERINO_SOURCE =
-    u"https://github.com/Fixlation/Mergerino";
+    u"https://github.com/DependentChemical/Mergerino";
 inline constexpr QStringView LINK_MERGERINO_X = u"https://x.com/mergerino";
 inline constexpr QStringView LINK_SEVENTV_DISCORD = u"https://discord.gg/7TV";
 
