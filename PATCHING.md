@@ -1,3 +1,18 @@
+Updating/Syncing to main repo
+```Bash
+git switch master
+
+git status
+
+git fetch upstream --prune --tags
+
+git merge upstream/main
+
+git push origin master
+```
+
+Workflows should run automatically.
+
 Yes. **This is exactly what GitHub forks are designed for.** You can modify your fork while continuing to pull updates from the original repository (the **upstream** repo).
 
 The important concept is that your fork has two relationships:
